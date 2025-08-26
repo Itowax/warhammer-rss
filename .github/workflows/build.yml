@@ -1,8 +1,8 @@
 name: build-rss
 on:
   schedule:
-    - cron: "*/30 * * * *"   # toutes les 30 minutes
-  workflow_dispatch:         # bouton "Run workflow" manuel
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,6 +15,14 @@ jobs:
           python-version: "3.11"
 
       - run: pip install -r requirements.txt
+
+      - name: Debug files
+        run: |
+          python --version
+          echo "== show requirements =="
+          cat requirements.txt
+          echo "== show scrape.py head =="
+          sed -n '1,80p' scrape.py
 
       - name: Generate RSS
         run: |
