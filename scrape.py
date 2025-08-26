@@ -11,7 +11,6 @@ def fetch_articles():
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
 
-    # Sélecteurs larges : adapte si GW change le HTML
     cards = soup.select("article, div[class*=card], li[class*=post]")[:15]
     items = []
     for c in cards:
@@ -29,25 +28,18 @@ def fetch_articles():
     return items
 
 def build_rss(items):
-    now = datetime.now(timezone.utc)
-    now_rfc = format_datetime(now)  # RFC 822/2822 string (ex: Tue, 05 Aug 2025 18:42:00 +0000)
-
-    # En-tête RSS 2.0
+    now_rfc = format_datetime(datetime.now(timezone.utc))
     parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        '<rss version="2.0">',
-        '<channel>',
+        '<rss version="2.0"><channel>',
         '<title>Warhammer Community – flux non officiel</title>',
         f'<link>{SRC}</link>',
         '<description>Flux RSS généré automatiquement depuis Warhammer Community (non officiel).</description>',
         f'<lastBuildDate>{now_rfc}</lastBuildDate>',
         '<language>en</language>',
     ]
-
     for it in items:
-        title = escape_xml(it["title"])
-        link  = escape_xml(it["link"])
-        desc  = escape_xml(it["desc"])
+        title = esc(it["title"]); link = esc(it["link"]); desc = esc(it["desc"])
         parts += [
             '<item>',
             f'  <title>{title}</title>',
@@ -56,16 +48,11 @@ def build_rss(items):
             f'  <pubDate>{now_rfc}</pubDate>',
             '</item>',
         ]
-
-    parts += ['</channel>', '</rss>']
+    parts += ['</channel></rss>']
     return "\n".join(parts).encode("utf-8")
 
-def escape_xml(s: str) -> str:
-    return (
-        s.replace("&", "&amp;")
-         .replace("<", "&lt;")
-         .replace(">", "&gt;")
-    )
+def esc(s: str) -> str:
+    return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
 
 if __name__ == "__main__":
     items = fetch_articles()
