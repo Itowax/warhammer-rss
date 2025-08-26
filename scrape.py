@@ -1,4 +1,5 @@
-import requests, re, datetime, os
+import requests, re, os
+from datetime import datetime, timezone
 from bs4 import BeautifulSoup
 from feedgen.feed import FeedGenerator
 
@@ -15,7 +16,7 @@ def fetch_articles():
     items = []
     for c in cards:
         a = c.find("a", href=True)
-        h = c.find(["h2","h3","h4"])
+        h = c.find(["h2", "h3", "h4"])
         if not a or not h:
             continue
         link = a["href"].strip()
@@ -28,21 +29,22 @@ def fetch_articles():
     return items
 
 def build_rss(items):
-    now = datetime.datetime.utcnow()
+    now = datetime.now(timezone.utc)  # ✅ timezone-aware (UTC)
 
     fg = FeedGenerator()
     fg.title("Warhammer Community – flux non officiel")
     fg.link(href=SRC, rel="alternate")
     fg.description("Flux RSS généré automatiquement depuis Warhammer Community (non officiel).")
     fg.language("en")
-    fg.lastBuildDate(now)
+    fg.lastBuildDate(now)  # ✅ aware
+    # (Optionnel) fg.pubDate(now) au niveau du channel si tu veux
 
     for it in items:
         fe = fg.add_entry()
         fe.title(it["title"])
         fe.link(href=it["link"])
         fe.description(it["desc"])
-        fe.pubDate(now)  # pas de date source fiable → on met l'heure de build
+        fe.pubDate(now)  # ✅ aware; faute de date source fiable
 
     return fg.rss_str(pretty=True)
 
