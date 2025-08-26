@@ -18,16 +18,17 @@ jobs:
 
       - name: Debug files
         run: |
-          python --version
-          echo "== show requirements =="
-          cat requirements.txt
-          echo "== show scrape.py head =="
-          sed -n '1,80p' scrape.py
+          echo "== requirements.txt =="
+          cat requirements.txt || true
+          echo "== list repo =="
+          ls -la
+          echo "== head generate.py =="
+          sed -n '1,80p' generate.py
 
       - name: Generate RSS
         run: |
           mkdir -p docs
-          python scrape.py
+          python generate.py
 
       - name: Commit & push updated rss.xml
         run: |
