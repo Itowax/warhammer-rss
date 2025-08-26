@@ -1,22 +1,22 @@
 import requests, re, os
-from datetime import datetime, timezone
 from bs4 import BeautifulSoup
-from feedgen.feed import FeedGenerator
+from datetime import datetime, timezone
+from email.utils import format_datetime
 
 SRC = "https://www.warhammer-community.com/en-gb/"
 UA = {"User-Agent": "Mozilla/5.0 (compatible; WarhammerRSS/1.0)"}
 
 def fetch_articles():
-    resp = requests.get(SRC, headers=UA, timeout=30)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
+    r = requests.get(SRC, headers=UA, timeout=30)
+    r.raise_for_status()
+    soup = BeautifulSoup(r.text, "html.parser")
 
-    # Sélecteurs larges pour résister aux changements de mise en page
+    # Sélecteurs larges : adapte si GW change le HTML
     cards = soup.select("article, div[class*=card], li[class*=post]")[:15]
     items = []
     for c in cards:
         a = c.find("a", href=True)
-        h = c.find(["h2", "h3", "h4"])
+        h = c.find(["h2","h3","h4"])
         if not a or not h:
             continue
         link = a["href"].strip()
@@ -29,24 +29,43 @@ def fetch_articles():
     return items
 
 def build_rss(items):
-    now = datetime.now(timezone.utc)  # ✅ timezone-aware (UTC)
+    now = datetime.now(timezone.utc)
+    now_rfc = format_datetime(now)  # RFC 822/2822 string (ex: Tue, 05 Aug 2025 18:42:00 +0000)
 
-    fg = FeedGenerator()
-    fg.title("Warhammer Community – flux non officiel")
-    fg.link(href=SRC, rel="alternate")
-    fg.description("Flux RSS généré automatiquement depuis Warhammer Community (non officiel).")
-    fg.language("en")
-    fg.lastBuildDate(now)  # ✅ aware
-    # (Optionnel) fg.pubDate(now) au niveau du channel si tu veux
+    # En-tête RSS 2.0
+    parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<rss version="2.0">',
+        '<channel>',
+        '<title>Warhammer Community – flux non officiel</title>',
+        f'<link>{SRC}</link>',
+        '<description>Flux RSS généré automatiquement depuis Warhammer Community (non officiel).</description>',
+        f'<lastBuildDate>{now_rfc}</lastBuildDate>',
+        '<language>en</language>',
+    ]
 
     for it in items:
-        fe = fg.add_entry()
-        fe.title(it["title"])
-        fe.link(href=it["link"])
-        fe.description(it["desc"])
-        fe.pubDate(now)  # ✅ aware; faute de date source fiable
+        title = escape_xml(it["title"])
+        link  = escape_xml(it["link"])
+        desc  = escape_xml(it["desc"])
+        parts += [
+            '<item>',
+            f'  <title>{title}</title>',
+            f'  <link>{link}</link>',
+            f'  <description>{desc}</description>',
+            f'  <pubDate>{now_rfc}</pubDate>',
+            '</item>',
+        ]
 
-    return fg.rss_str(pretty=True)
+    parts += ['</channel>', '</rss>']
+    return "\n".join(parts).encode("utf-8")
+
+def escape_xml(s: str) -> str:
+    return (
+        s.replace("&", "&amp;")
+         .replace("<", "&lt;")
+         .replace(">", "&gt;")
+    )
 
 if __name__ == "__main__":
     items = fetch_articles()
