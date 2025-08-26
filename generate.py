@@ -4,30 +4,36 @@ from datetime import datetime, timezone
 from email.utils import format_datetime
 from urllib.parse import urljoin
 
-BASE = "https://www.warhammer-community.com"
-SRC  = f"{BASE}/fr-fr/"   # ✅ page FR
-UA   = {"User-Agent": "Mozilla/5.0 (compatible; WarhammerRSS/1.1)"}
+UA = {"User-Agent": "Mozilla/5.0 (compatible; WarhammerRSS/2.0)"}
+MAX_ITEMS = 15
+NEW_ONLY  = True  # ne publier QUE les nouveaux liens (anti-spam)
 
-SEEN_PATH = "data/seen.json"
-MAX_ITEMS = 15  # limite d'items dans le flux
+FEEDS = [
+    # title, base_url,           lang,      seen_json,            out_xml
+    ("Warhammer Community FR", "https://www.warhammer-community.com/fr-fr/", "fr",
+     "data/seen_fr.json", "docs/rss-fr.xml"),
+    ("Warhammer Community EN", "https://www.warhammer-community.com/en-gb/", "en",
+     "data/seen_en.json", "docs/rss-en.xml"),
+]
 
-def load_seen():
-    if os.path.exists(SEEN_PATH):
-        with open(SEEN_PATH, "r", encoding="utf-8") as f:
+def load_seen(path):
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
-def save_seen(seen):
-    os.makedirs(os.path.dirname(SEEN_PATH), exist_ok=True)
-    with open(SEEN_PATH, "w", encoding="utf-8") as f:
+def save_seen(path, seen):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    # garder un historique raisonnable
+    if len(seen) > 800:
+        seen = dict(list(sorted(seen.items(), key=lambda kv: kv[1], reverse=True))[:800])
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(seen, f, ensure_ascii=False, indent=2)
 
-def fetch_articles():
-    r = requests.get(SRC, headers=UA, timeout=30)
+def fetch_articles(src):
+    r = requests.get(src, headers=UA, timeout=30)
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
-
-    # Sélecteurs larges
     cards = soup.select("article, div[class*=card], li[class*=post]")[:MAX_ITEMS]
     items = []
     for c in cards:
@@ -35,57 +41,59 @@ def fetch_articles():
         h = c.find(["h2","h3","h4"])
         if not a or not h:
             continue
-        href = a["href"].strip()
-        link = urljoin(SRC, href)  # ✅ gère les liens relatifs/absolus
+        href  = a["href"].strip()
+        link  = urljoin(src, href)
         title = re.sub(r"\s+", " ", h.get_text(strip=True))
         p = c.find("p")
-        desc = (p.get_text(" ", strip=True) if p else title)
+        desc  = (p.get_text(" ", strip=True) if p else title)
         items.append({"title": title, "link": link, "desc": desc})
     return items
 
-def esc(s: str) -> str:
+def esc(s):  # échappement XML simple
     return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
 
-def build_rss(items, seen):
+def build_rss(title, src, lang, items, seen):
     now_rfc = format_datetime(datetime.now(timezone.utc))
 
-    # pubDate figée à la première apparition (évite le spam)
-    out_dates = {}
+    # déterminer les nouveaux liens (et fixer la date à 1ère vue)
+    new_items = []
     for it in items:
         link = it["link"]
-        out_dates[link] = seen.get(link) or now_rfc
+        if link not in seen:
+            seen[link] = now_rfc
+            new_items.append(it)
 
-    # Ne mémorise que les liens encore visibles
-    save_seen({link: out_dates[link] for link in out_dates})
+    items_to_publish = new_items if NEW_ONLY else items
 
     parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<rss version="2.0"><channel>',
-        '<title>Warhammer Community</title>',
-        f'<link>{SRC}</link>',
-        '<description>Flux RSS généré automatiquement depuis Warhammer Community.</description>',
+        f'<title>{esc(title)}</title>',
+        f'<link>{esc(src)}</link>',
+        f'<description>{esc(title)} – flux RSS.</description>',
         f'<lastBuildDate>{now_rfc}</lastBuildDate>',
-        '<language>fr</language>',
+        f'<language>{lang}</language>',
     ]
-    for it in items:
-        title = esc(it["title"]); link = esc(it["link"]); desc = esc(it["desc"])
-        pub = out_dates[it["link"]]
+    for it in items_to_publish:
+        link = esc(it["link"])
         parts += [
             '<item>',
-            f'  <title>{title}</title>',
+            f'  <title>{esc(it["title"])}</title>',
             f'  <link>{link}</link>',
             f'  <guid isPermaLink="true">{link}</guid>',
-            f'  <description>{desc}</description>',
-            f'  <pubDate>{pub}</pubDate>',
+            f'  <description>{esc(it["desc"])}</description>',
+            f'  <pubDate>{seen[it["link"]]}</pubDate>',
             '</item>',
         ]
     parts += ['</channel></rss>']
-    return "\n".join(parts).encode("utf-8")
+    return "\n".join(parts).encode("utf-8"), seen
 
 if __name__ == "__main__":
-    items = fetch_articles()
-    seen = load_seen()
     os.makedirs("docs", exist_ok=True)
-    xml = build_rss(items, seen)
-    with open("docs/rss.xml", "wb") as f:
-        f.write(xml)
+    for title, src, lang, seen_path, out_xml in FEEDS:
+        items = fetch_articles(src)
+        seen  = load_seen(seen_path)
+        xml, seen = build_rss(title, src, lang, items, seen)
+        save_seen(seen_path, seen)
+        with open(out_xml, "wb") as f:
+            f.write(xml)
