@@ -6,7 +6,7 @@ from email.utils import format_datetime
 SRC = "https://www.warhammer-community.com/en-gb/"
 UA = {"User-Agent": "Mozilla/5.0 (compatible; WarhammerRSS/1.0)"}
 SEEN_PATH = "data/seen.json"
-MAX_ITEMS = 15  # limite d'items dans le flux
+MAX_ITEMS = 10  # limite d'items dans le flux
 
 def load_seen():
     if os.path.exists(SEEN_PATH):
