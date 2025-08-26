@@ -4,26 +4,22 @@ on:
     - cron: "*/30 * * * *"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - run: pip install -r requirements.txt
-
-      - name: Debug files
-        run: |
-          echo "== requirements.txt =="
-          cat requirements.txt || true
-          echo "== list repo =="
-          ls -la
-          echo "== head generate.py =="
-          sed -n '1,80p' generate.py
 
       - name: Generate RSS
         run: |
