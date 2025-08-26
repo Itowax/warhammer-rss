@@ -2,11 +2,14 @@ import os, re, json, requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone
 from email.utils import format_datetime
+from urllib.parse import urljoin
 
-SRC = "https://www.warhammer-community.com/en-gb/"
-UA = {"User-Agent": "Mozilla/5.0 (compatible; WarhammerRSS/1.0)"}
+BASE = "https://www.warhammer-community.com"
+SRC  = f"{BASE}/fr-fr/"   # ✅ page FR
+UA   = {"User-Agent": "Mozilla/5.0 (compatible; WarhammerRSS/1.1)"}
+
 SEEN_PATH = "data/seen.json"
-MAX_ITEMS = 10  # limite d'items dans le flux
+MAX_ITEMS = 15  # limite d'items dans le flux
 
 def load_seen():
     if os.path.exists(SEEN_PATH):
@@ -23,6 +26,8 @@ def fetch_articles():
     r = requests.get(SRC, headers=UA, timeout=30)
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
+
+    # Sélecteurs larges (au cas où le HTML change légèrement)
     cards = soup.select("article, div[class*=card], li[class*=post]")[:MAX_ITEMS]
     items = []
     for c in cards:
@@ -30,9 +35,8 @@ def fetch_articles():
         h = c.find(["h2","h3","h4"])
         if not a or not h:
             continue
-        link = a["href"].strip()
-        if link.startswith("/"):
-            link = "https://www.warhammer-community.com" + link
+        href = a["href"].strip()
+        link = urljoin(SRC, href)  # ✅ résout les liens relatifs / absolus
         title = re.sub(r"\s+", " ", h.get_text(strip=True))
         p = c.find("p")
         desc = (p.get_text(" ", strip=True) if p else title)
@@ -44,13 +48,14 @@ def esc(s: str) -> str:
 
 def build_rss(items, seen):
     now_rfc = format_datetime(datetime.now(timezone.utc))
-    # Assigne une pubDate stable pour chaque lien (si nouveau -> maintenant)
+
+    # pubDate figée à la première apparition (évite le spam)
     out_dates = {}
     for it in items:
         link = it["link"]
         out_dates[link] = seen.get(link) or now_rfc
 
-    # Ne garde en mémoire que les items présents (évite que le JSON grossisse)
+    # Ne mémorise que les liens encore visibles
     save_seen({link: out_dates[link] for link in out_dates})
 
     parts = [
@@ -60,7 +65,7 @@ def build_rss(items, seen):
         f'<link>{SRC}</link>',
         '<description>Flux RSS généré automatiquement depuis Warhammer Community.</description>',
         f'<lastBuildDate>{now_rfc}</lastBuildDate>',
-        '<language>en</language>',
+        '<language>fr</language>',
     ]
     for it in items:
         title = esc(it["title"]); link = esc(it["link"]); desc = esc(it["desc"])
