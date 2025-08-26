@@ -27,7 +27,7 @@ def fetch_articles():
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
 
-    # Sélecteurs larges (au cas où le HTML change légèrement)
+    # Sélecteurs larges
     cards = soup.select("article, div[class*=card], li[class*=post]")[:MAX_ITEMS]
     items = []
     for c in cards:
@@ -36,7 +36,7 @@ def fetch_articles():
         if not a or not h:
             continue
         href = a["href"].strip()
-        link = urljoin(SRC, href)  # ✅ résout les liens relatifs / absolus
+        link = urljoin(SRC, href)  # ✅ gère les liens relatifs/absolus
         title = re.sub(r"\s+", " ", h.get_text(strip=True))
         p = c.find("p")
         desc = (p.get_text(" ", strip=True) if p else title)
