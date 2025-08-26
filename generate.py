@@ -56,9 +56,9 @@ def build_rss(items, seen):
     parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<rss version="2.0"><channel>',
-        '<title>Warhammer Community – flux non officiel</title>',
+        '<title>Warhammer Community</title>',
         f'<link>{SRC}</link>',
-        '<description>Flux RSS généré automatiquement depuis Warhammer Community (non officiel).</description>',
+        '<description>Flux RSS généré automatiquement depuis Warhammer Community.</description>',
         f'<lastBuildDate>{now_rfc}</lastBuildDate>',
         '<language>en</language>',
     ]
