@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 
 UA = {"User-Agent": "Mozilla/5.0 (compatible; WarhammerRSS/2.0)"}
 MAX_ITEMS = 15
-NEW_ONLY  = False  # ne publier QUE les nouveaux liens (anti-spam)
+NEW_ONLY  = True  # ne publier QUE les nouveaux liens (anti-spam)
 
 FEEDS = [
     # title, base_url,           lang,      seen_json,            out_xml
